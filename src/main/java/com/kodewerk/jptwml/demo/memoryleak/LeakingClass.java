@@ -5,13 +5,12 @@ package com.kodewerk.jptwml.demo.memoryleak;
  * All right reserved
  ********************************************/
 
-import java.util.HashMap;
+import java.util.*;
 
 public class LeakingClass {
-
-    private HashMap<String,String> alongForTheRide = new HashMap();
-    private String alsoAlongForTheRide;
-    private LeakingField leakingField;
+    private final Map<String, String> alongForTheRide = new HashMap<>();
+    private final String alsoAlongForTheRide;
+    private final LeakingField leakingField;
 
     public LeakingClass(String parameter, LeakingField field) {
         alsoAlongForTheRide = parameter;

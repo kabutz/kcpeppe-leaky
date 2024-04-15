@@ -5,74 +5,67 @@ package com.kodewerk.jptwml.demo.memoryleak;
  * All right reserved
  ********************************************/
 
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.application.Application;
-import javafx.event.ActionEvent;
-import javafx.geometry.Pos;
-import javafx.scene.Scene;
-import javafx.scene.chart.NumberAxis;
-import javafx.scene.chart.ScatterChart;
-import javafx.scene.chart.XYChart;
-import javafx.scene.control.Button;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
-import javafx.stage.Stage;
-import javafx.util.Duration;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
 
+import javax.swing.*;
+import java.awt.*;
 import java.lang.management.ManagementFactory;
 
-public class Leaky extends Application {
-
-    private LeakyModel model;
-    private ScatterChart<Number, Number> chart;
-    private XYChart.Series<Number,Number> heapOccupancy = new XYChart.Series<>();
+public class Leaky extends JFrame {
+    private final LeakyModel model = new LeakyModel();
+    private final XYSeries heapOccupancy = new XYSeries("Heap Occupancy");
     private long baseTime = System.currentTimeMillis();
 
-    @Override
-    public void start(Stage primaryStage) throws Exception {
-        primaryStage.setTitle("Leaky");
-        model = new LeakyModel();
+    public Leaky() {
+        super("Leaky");
 
-        chart = buildScatterChart(
-                "Memory Use",
-                "Time (seconds)",
-                "Occupancy (K)");
+        var chartPanel = new ChartPanel(createChart(heapOccupancy));
 
-        TextField integerField = new TextField("1000000");
+        var numberOfObjectsField = new JTextField("1000000", 10);
 
-        Button button = new Button("Do Stuff");
-        button.setOnAction((event)-> model.leak(Integer.valueOf(integerField.getText())));
+        JButton button = new JButton("Do Stuff");
+        button.addActionListener(e -> model.leak(
+                Integer.parseInt(numberOfObjectsField.getText())));
 
-        HBox controls = new HBox(5, integerField, button);
-        VBox root = new VBox(5, controls, chart);
-        root.setAlignment(Pos.CENTER);
-        Scene scene = new Scene(root, 900, 360);
-        primaryStage.setScene(scene);
-        primaryStage.show();
+        JPanel controls = new JPanel();
+        controls.add(numberOfObjectsField);
+        controls.add(button);
 
-        Timeline timeline = new Timeline();
-        timeline.getKeyFrames().add(
-                new KeyFrame(Duration.millis(1000), (ActionEvent actionEvent) -> {
-                    Number currentHeapOccupancy = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / 1024;
-                    Number currentTimeSeconds = (double) (System.currentTimeMillis() - baseTime) / 1000.0d;
-                    heapOccupancy.getData().add(new XYChart.Data<>(currentTimeSeconds,currentHeapOccupancy));
-                }));
-        timeline.setCycleCount(1000);
-        timeline.setAutoReverse(true);  //!?
-        timeline.play();
+        add(controls, BorderLayout.NORTH);
+        add(chartPanel, BorderLayout.CENTER);
+
+        new Timer(1000, event -> {
+            long currentHeapOccupancy = ManagementFactory.getMemoryMXBean()
+                    .getHeapMemoryUsage()
+                    .getUsed() / 1024;
+            double currentTimeSeconds = (double) (System.currentTimeMillis() - baseTime) / 1000.0d;
+            heapOccupancy.add(currentHeapOccupancy, currentTimeSeconds);
+        }).start();
     }
 
-    ScatterChart<Number,Number> buildScatterChart(String title, String xAxisLabel, String yAxisLabel) { //, ) { //Map<SafepointCause,ArrayList<DataPoint>> seriesData) {
-        NumberAxis xAxis = new NumberAxis();
-        xAxis.setLabel(xAxisLabel);
-        NumberAxis yAxis = new NumberAxis();
-        yAxis.setLabel(yAxisLabel);
-        ScatterChart<Number,Number> chart = new ScatterChart<>(xAxis,yAxis);
-        chart.setTitle(title);
-        heapOccupancy.setName("Heap Occupancy");
-        chart.getData().add(heapOccupancy);
-        return chart;
+    private JFreeChart createChart(XYSeries series) {
+        return ChartFactory.createScatterPlot(
+                "Memory Use",
+                "Occupancy (K)",
+                "Time (seconds)",
+                new XYSeriesCollection(series),
+                PlotOrientation.HORIZONTAL,
+                true, true, true
+        );
+    }
+
+    public static void main(String[] args) {
+        EventQueue.invokeLater(() -> {
+            var leaky = new Leaky();
+            leaky.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            leaky.setSize(900, 400);
+            leaky.setLocationRelativeTo(null);
+            leaky.setVisible(true);
+        });
     }
 }
