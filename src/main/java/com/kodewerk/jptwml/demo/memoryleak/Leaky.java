@@ -15,11 +15,13 @@ import org.jfree.data.xy.XYSeriesCollection;
 import javax.swing.*;
 import java.awt.*;
 import java.lang.management.ManagementFactory;
+import java.util.concurrent.*;
 
 public class Leaky extends JFrame {
     private final LeakyModel model = new LeakyModel();
     private final XYSeries heapOccupancy = new XYSeries("Heap Occupancy");
     private long baseTime = System.currentTimeMillis();
+    private final static ExecutorService leakerService = Executors.newSingleThreadExecutor();
 
     public Leaky() {
         super("Leaky");
@@ -28,11 +30,27 @@ public class Leaky extends JFrame {
 
         var numberOfObjectsField = new JTextField("1000000", 10);
 
-        JButton button = new JButton("Do Stuff");
-        button.addActionListener(e -> model.leak(
-                Integer.parseInt(numberOfObjectsField.getText())));
+        var button = new JButton("Do Stuff");
+        button.addActionListener(e -> {
+            button.setEnabled(false);
+            numberOfObjectsField.setEnabled(false);
+            leakerService.submit(() -> {
+                try {
+                    model.leak(Long.parseLong(numberOfObjectsField.getText()));
+                    EventQueue.invokeLater(() -> {
+                        button.setEnabled(true);
+                        numberOfObjectsField.setEnabled(true);
+                        numberOfObjectsField.requestFocus();
+                    });
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+            });
+        });
+        button.setDefaultCapable(true);
+        getRootPane().setDefaultButton(button);
 
-        JPanel controls = new JPanel();
+        var controls = new JPanel();
         controls.add(numberOfObjectsField);
         controls.add(button);
 
@@ -42,7 +60,7 @@ public class Leaky extends JFrame {
         new Timer(1000, event -> {
             long currentHeapOccupancy = ManagementFactory.getMemoryMXBean()
                     .getHeapMemoryUsage()
-                    .getUsed() / 1024;
+                    .getUsed() / (1024 * 1024);
             double currentTimeSeconds = (double) (System.currentTimeMillis() - baseTime) / 1000.0d;
             heapOccupancy.add(currentHeapOccupancy, currentTimeSeconds);
         }).start();
@@ -51,12 +69,10 @@ public class Leaky extends JFrame {
     private JFreeChart createChart(XYSeries series) {
         return ChartFactory.createScatterPlot(
                 "Memory Use",
-                "Occupancy (K)",
+                "Occupancy (MB)",
                 "Time (seconds)",
                 new XYSeriesCollection(series),
-                PlotOrientation.HORIZONTAL,
-                true, true, true
-        );
+                PlotOrientation.HORIZONTAL, true, true, true);
     }
 
     public static void main(String[] args) {

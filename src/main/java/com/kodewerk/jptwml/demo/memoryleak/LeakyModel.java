@@ -6,14 +6,14 @@ package com.kodewerk.jptwml.demo.memoryleak;
  ********************************************/
 
 import java.util.*;
-
+import java.util.concurrent.*;
 
 public class LeakyModel {
     private final ArrayList<LeakingClass> leaker = new ArrayList<>();
 
-    public void leak(int range) {
+    public void leak(long range) {
         char[] aString = "some leaking stuff".toCharArray();
-        for (int i = 0; i < range; i++) {
+        for (long i = 0; i < range; i++) {
             leaker.add(new LeakingClass(new String(aString), new LeakingField()));
         }
     }
